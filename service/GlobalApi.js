@@ -43,15 +43,29 @@ const GetUserResumes = (userEmail) =>
  * @param {Object} data - Updated resume data.
  */
 const UpdateResumeDetail = (id, data) => {
-  // Keep original education array handling
-  if (data.education) {
-    data.educations = Array.isArray(data.education) ? data.education : [data.education];
-    delete data.education;
-  }
+  // Clean the skills data by removing any ID fields
+  const cleanSkills = data.skills?.map(skill => {
+    const { id: _, ...cleanSkill } = skill;
+    return cleanSkill;
+  });
 
-  console.log("Updating resume with data:", JSON.stringify(data, null, 2)); // Original debug log
+  // Prepare the request data
+  const requestData = {
+    data: {
+      ...(cleanSkills && { skills: cleanSkills }),
+      // Handle education if present
+      ...(data.education && {
+        education: Array.isArray(data.education) ? data.education : [data.education]
+      }),
+      // Include other fields
+      ...Object.fromEntries(
+        Object.entries(data).filter(([key]) => !['skills', 'education'].includes(key))
+    )}
+  };
 
-  return axiosClient.put(`/user-resumes/${id}`, data); // Original format
+  console.log("Final request payload:", JSON.stringify(requestData, null, 2));
+
+  return axiosClient.put(`/user-resumes/${id}`, requestData);
 };
 
 /**
