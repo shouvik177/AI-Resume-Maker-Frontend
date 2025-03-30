@@ -49,29 +49,27 @@ const UpdateResumeDetail = (id, data) => {
     return cleanSkill;
   });
 
+  // Clean the projects data by removing any ID fields
+  const cleanProjects = data.projects?.map(project => {
+    const { id: _, ...cleanProject } = project;
+    return cleanProject;
+  });
+
   // Prepare the request data
   const requestData = {
     data: {
       ...(cleanSkills && { skills: cleanSkills }),
-      // Handle education if present
+      ...(cleanProjects && { projects: cleanProjects }), // ✅ Now projects are cleaned too
       ...(data.education && {
         education: Array.isArray(data.education) ? data.education : [data.education]
       }),
-      // Include other fields
       ...Object.fromEntries(
-        Object.entries(data).filter(([key]) => !['skills', 'education'].includes(key))
+        Object.entries(data).filter(([key]) => !['skills', 'education', 'projects'].includes(key))
       )
     }
   };
 
-  // Ensure payload does not wrap `data` inside another `data`
-  if (requestData.data.data) {
-    requestData.data = requestData.data.data;
-  }
-
-  console.log("Final request payload:", JSON.stringify(requestData, null, 2));
-
-  return axiosClient.put(`/user-resumes/${id}`, requestData);
+  return requestData; // Make sure this is actually sent to your API
 };
 
 /**

@@ -37,16 +37,39 @@ function Custom({ sectionKey, initialTitle = '', enabledNext }) {
   const onSave = async () => {
     setLoading(true);
     try {
-      await GlobalApi.UpdateResumeDetail(params.resumeId, {
+      // Ensure at least one item has a title
+      const validItems = items.filter(item => item.title.trim());
+      if (validItems.length === 0) {
+        toast.error("At least one valid item is required.");
+        setLoading(false);
+        return;
+      }
+
+      const requestData = {
         data: {
-          ...resumeInfo,
-          [sectionKey]: items,
-          [`${sectionKey}_title`]: sectionTitle
-        }
-      });
-      toast.success('Changes saved!');
+          sectionTitle,
+          items: validItems.map(item => ({
+            title: item.title,
+            description: item.description,
+          })),
+        },
+      };
+
+      console.log("Sending request:", requestData);
+
+      const response = await GlobalApi.UpdateResumeDetail(params.resumeId, requestData);
+
+      // Debug API response
+      console.log("API Response:", response);
+
+      if (response?.error) {
+        throw new Error(response.error.message || "Failed to save changes.");
+      }
+
+      toast.success('Changes saved successfully!');
     } catch (error) {
-      toast.error('Failed to save');
+      console.error("Save Error:", error);
+      toast.error(error.message || 'Something went wrong, please try again.');
     } finally {
       setLoading(false);
     }

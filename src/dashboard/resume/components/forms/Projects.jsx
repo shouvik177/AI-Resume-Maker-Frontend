@@ -22,20 +22,30 @@ Each description should be:
 
 function Projects({ enabledNext }) {
     const { resumeInfo, setResumeInfo } = useContext(ResumeInfoContext);
-    const [projects, setProjects] = useState([{ name: '', description: '', startDate: '', endDate: '', isPresent: false }]);
+    const [projects, setProjects] = useState([]);
     const [aiLoading, setAiLoading] = useState(false);
     const params = useParams();
     const [aiSuggestions, setAiSuggestions] = useState({});
 
+    // Load projects from context when available
     useEffect(() => {
-        if (resumeInfo.projects) {
+        if (resumeInfo.projects?.length) {
             setProjects(resumeInfo.projects);
+        } else {
+            setProjects([{ name: '', description: '', startDate: '', endDate: '', isPresent: false }]);
         }
     }, [resumeInfo.projects]);
 
     const handleProjectChange = (index, field, value) => {
         const updatedProjects = [...projects];
-        updatedProjects[index][field] = value;
+
+        if (field === 'isPresent') {
+            updatedProjects[index].isPresent = value;
+            updatedProjects[index].endDate = value ? '' : updatedProjects[index].endDate; // Clear end date if "Present" is checked
+        } else {
+            updatedProjects[index][field] = value;
+        }
+
         setProjects(updatedProjects);
         setResumeInfo(prevState => ({
             ...prevState,
@@ -89,12 +99,23 @@ function Projects({ enabledNext }) {
 
     const saveProjects = async () => {
         try {
-            await GlobalApi.UpdateResumeDetail(params?.resumeId, { data: { projects } });
-            enabledNext(true);
+            console.log("🔄 Sending request:", JSON.stringify({ data: { projects } }, null, 2));
+    
+            const response = await GlobalApi.UpdateResumeDetail(params?.resumeId, { data: { projects } });
+    
+            // Ensure enabledNext is a function before calling it
+            if (typeof enabledNext === "function") {
+                enabledNext(true);
+            } else {
+                console.warn("⚠️ Warning: enabledNext is not a function.");
+            }
+    
             toast.success("✅ Projects saved successfully!");
         } catch (error) {
-            console.error("❌ Error saving projects:", error);
-            toast.error("Failed to save projects. Try again.");
+            console.error("❌ Error saving projects:", error.response?.data || error);
+    
+            // Show a meaningful error message to the user
+            toast.error(error.response?.data?.message || "Failed to save projects. Try again.");
         }
     };
 
@@ -138,7 +159,7 @@ function Projects({ enabledNext }) {
                         </div>
                     </div>
 
-                    {/* 🔥 AI-Generated Suggestions (Now displayed instead of dropdown) */}
+                    {/* AI Suggestions */}
                     {aiSuggestions[index] && aiSuggestions[index].length > 0 && (
                         <div className="my-4">
                             <h2 className="font-bold text-lg text-primary">AI Suggestions</h2>
@@ -152,6 +173,7 @@ function Projects({ enabledNext }) {
                         </div>
                     )}
 
+                    {/* Start Date & End Date */}
                     <div className='grid grid-cols-2 gap-4 mb-4'>
                         <div>
                             <label className='block font-semibold mb-2'>Start Date</label>
