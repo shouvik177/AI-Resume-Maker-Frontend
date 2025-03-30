@@ -7,7 +7,7 @@ function EducationalPreview({resumeInfo}) {
     style={{
         color:resumeInfo?.themeColor
     }}
-    >Education</h2>
+    >EDUCATION</h2>
     <hr style={{
         borderColor:resumeInfo?.themeColor
     }} />

@@ -49,47 +49,56 @@ function PersonalDetail({ enabledNext }) {
   }
 
   const onSave = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-
-    const payload = {
-      data: {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        jobTitle: formData.jobTitle,
-        address: formData.address,
-        phone: formData.phone,
-        email: formData.email,
-        linkedinUrl: formData.linkedinUrl || null,
-        githubUrl: formData.githubUrl || null,
-        portfolioUrl: formData.portfolioUrl || null,
-        summery: resumeInfo.summery || ''
-      }
+    e.preventDefault();
+    setLoading(true);
+  
+    if (!params?.resumeId) {
+      toast.error("Invalid resume ID");
+      setLoading(false);
+      return;
     }
-
+  
+    // Sanitize input to ensure no undefined values
+    const sanitizedData = {
+      firstName: formData.firstName || "",
+      lastName: formData.lastName || "",
+      jobTitle: formData.jobTitle || "",
+      address: formData.address || "",
+      phone: formData.phone || "",
+      email: formData.email || "",
+      linkedinUrl: formData.linkedinUrl || null,
+      githubUrl: formData.githubUrl || null,
+      portfolioUrl: formData.portfolioUrl || null,
+      summery: resumeInfo.summery || ""  // Ensure correct spelling
+    };
+  
+    const payload = { data: sanitizedData };
+  
     try {
-      const response = await GlobalApi.UpdateResumeDetail(params?.resumeId, payload)
+      console.log("Sending request with payload:", JSON.stringify(payload, null, 2));
       
+      const response = await GlobalApi.UpdateResumeDetail(params.resumeId, payload);
+  
       if (response.data?.data?.id) {
         setResumeInfo(prev => ({
           ...prev,
           ...formData
-        }))
-        toast.success('Personal details updated successfully')
-        enabledNext(true)
+        }));
+        toast.success("Personal details updated successfully");
+        enabledNext(true);
       } else {
-        throw new Error('Invalid response format')
+        throw new Error("Invalid response format");
       }
     } catch (error) {
-      console.error('Update error:', error.response?.data || error.message)
+      console.error("Update error:", error.response?.data || error.message);
       toast.error(
         error.response?.data?.error?.message || 
-        'Failed to update details. Please try again.'
-      )
+        "Failed to update details. Please try again."
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className='p-6 rounded-xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-gray-100'>

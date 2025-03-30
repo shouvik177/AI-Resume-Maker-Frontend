@@ -60,8 +60,14 @@ const UpdateResumeDetail = (id, data) => {
       // Include other fields
       ...Object.fromEntries(
         Object.entries(data).filter(([key]) => !['skills', 'education'].includes(key))
-    )}
+      )
+    }
   };
+
+  // Ensure payload does not wrap `data` inside another `data`
+  if (requestData.data.data) {
+    requestData.data = requestData.data.data;
+  }
 
   console.log("Final request payload:", JSON.stringify(requestData, null, 2));
 

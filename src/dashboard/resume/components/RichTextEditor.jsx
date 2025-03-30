@@ -11,6 +11,10 @@ const generateExperiencePrompt = (type, jobTitle, companyName) => {
     const { keywords, metrics } = getIndustrySpecifics(jobTitle);
     
     return `
+        IMPORTANT: Return ONLY the bullet point content in HTML <li> format.
+        DO NOT wrap the response in JSON or include any field names like "professionalSummary".
+        DO NOT include any opening or closing braces, quotes, or other JSON formatting.
+
         **Job Title:** ${jobTitle}
         **Company:** ${companyName || '[Company]'}
         **Type:** ${type} experience summary
@@ -84,24 +88,48 @@ function RichTextEditor({ onRichTextEditorChange, index, defaultValue }) {
 
         setLoadingType(type);
         const jobTitle = resumeInfo.Experience[index].title;
-        const prompt = generateExperiencePrompt(type, jobTitle);
+        const companyName = resumeInfo.Experience[index].company;
+        const prompt = generateExperiencePrompt(type, jobTitle, companyName);
 
         try {
             const result = await AIChatSession.sendMessage(prompt);
-            const rawText = await result.response.text();
+            let rawText = await result.response.text();
 
+            // Clean the response to remove any potential JSON artifacts
+            try {
+                const jsonResponse = JSON.parse(rawText);
+                if (jsonResponse.professionalSummary) {
+                    rawText = jsonResponse.professionalSummary;
+                }
+            } catch (e) {
+                // Not JSON, use as-is
+            }
+
+            // Remove any remaining JSON-like artifacts
+            rawText = rawText
+                .replace(/^{/, '')
+                .replace(/}$/, '')
+                .replace(/^"professionalSummary":\s*"/, '')
+                .replace(/"$/, '')
+                .trim();
+
+            // Process the bullet points
             const bulletPoints = rawText
                 .split('\n')
                 .map(item => item.trim())
                 .filter(item => item.length > 0)
-                .map(item => `<li>${item}</li>`)
+                .map(item => {
+                    // Remove any list markers if they exist
+                    if (item.startsWith('<li>')) return item;
+                    if (item.startsWith('- ')) return `<li>${item.substring(2)}</li>`;
+                    if (item.match(/^\d+\.\s/)) return `<li>${item.replace(/^\d+\.\s/, '')}</li>`;
+                    return `<li>${item}</li>`;
+                })
                 .join('');
 
             const newValue = `<ul>${bulletPoints}</ul>`;
             setValue(newValue);
             setAiGenerated(true);
-
-            // ✅ Manually trigger onRichTextEditorChange so preview updates immediately
             onRichTextEditorChange({ target: { value: newValue } });
 
         } catch (error) {
