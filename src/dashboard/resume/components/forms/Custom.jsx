@@ -35,45 +35,49 @@ function Custom({ sectionKey, initialTitle = '', enabledNext }) {
   }, [items, sectionTitle, sectionKey, setResumeInfo]);
 
   const onSave = async () => {
-    setLoading(true);
-    try {
-      // Ensure at least one item has a title
-      const validItems = items.filter(item => item.title.trim());
-      if (validItems.length === 0) {
-        toast.error("At least one valid item is required.");
-        setLoading(false);
-        return;
-      }
-
-      const requestData = {
-        data: {
-          sectionTitle,
-          items: validItems.map(item => ({
-            title: item.title,
-            description: item.description,
-          })),
-        },
-      };
-
-      console.log("Sending request:", requestData);
-
-      const response = await GlobalApi.UpdateResumeDetail(params.resumeId, requestData);
-
-      // Debug API response
-      console.log("API Response:", response);
-
-      if (response?.error) {
-        throw new Error(response.error.message || "Failed to save changes.");
-      }
-
-      toast.success('Changes saved successfully!');
-    } catch (error) {
-      console.error("Save Error:", error);
-      toast.error(error.message || 'Something went wrong, please try again.');
-    } finally {
+  setLoading(true);
+  try {
+    const validItems = items.filter(item => item.title.trim());
+    if (validItems.length === 0) {
+      toast.error("At least one item with a title is required");
       setLoading(false);
+      return;
     }
-  };
+
+    // Structure the new custom section
+    const newCustomSection = {
+      sectionTitle: sectionTitle,
+      items: validItems.map(item => ({
+        title: item.title,
+        description: item.description
+      }))
+    };
+
+    // Fetch the existing customSections (assuming you have a way to get them from the state or API)
+    const existingCustomSections = resumeInfo?.customSections || [];  // Ensure you are accessing the correct data source
+
+    // Merge the new section with the existing sections
+    const updatedCustomSections = [...existingCustomSections, newCustomSection];
+
+    // Structure the final payload
+    const payload = {
+      customSection: updatedCustomSections  // The updated customSection array
+    };
+
+    console.log("Final payload:", JSON.stringify(payload, null, 2));
+
+    // Send the updated payload to the backend (replace `GlobalApi.UpdateResumeDetail` with the actual function)
+    const response = await GlobalApi.UpdateResumeDetail(params.resumeId, payload);
+
+    toast.success('Saved successfully!');
+    if (enabledNext) enabledNext(true);
+  } catch (error) {
+    console.error("Save error:", error.response?.data);
+    toast.error(error.response?.data?.error?.message || 'Save failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleItemChange = (e, index) => {
     const { name, value } = e.target;

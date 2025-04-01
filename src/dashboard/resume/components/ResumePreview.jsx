@@ -36,7 +36,12 @@ function ResumePreview() {
             <SummeryPreview resumeInfo={resumeInfo} />
 
             {/* Professional Experience (Conditional) */}
-            {resumeInfo?.Experience?.length > 0 && <ExperiencePreview resumeInfo={resumeInfo} />}
+            {resumeInfo?.Experience?.length > 0 && (
+                <ExperiencePreview 
+                    resumeInfo={resumeInfo} 
+                    hideHeader={true}  // Add this prop to prevent duplicate header
+                />
+            )}
 
             {/* Education (Conditional) */}
             {resumeInfo?.education?.length > 0 && <EducationalPreview resumeInfo={resumeInfo} />}

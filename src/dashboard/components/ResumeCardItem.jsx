@@ -59,7 +59,7 @@ function ResumeCardItem({ resume, refreshData, className }) {
     >
       <Link to={`/dashboard/resume/${resume.documentId}/edit`}>
         <div 
-          className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center"
+          className="h-48 bg-gradient-to-br from-gray-800 to-gray-200 flex items-center justify-center"
           style={{
             borderTop: `4px solid ${resume?.themeColor || '#4f46e5'}`,
             background: resume?.themeColor 
@@ -67,7 +67,7 @@ function ResumeCardItem({ resume, refreshData, className }) {
               : undefined
           }}
         >
-          <div className="p-4 bg-white/80 rounded-lg shadow-sm">
+          <div className="p-4 bg-white/10 rounded-lg shadow-sm">
             <img 
               src="/cv.png" 
               width={60} 
@@ -80,7 +80,7 @@ function ResumeCardItem({ resume, refreshData, className }) {
       </Link>
 
       <div 
-        className="p-3 flex justify-between items-center bg-white border-t border-gray-100"
+        className="p-3 flex justify-between items-center bg-purple-400 border-t border-gray-100"
         style={{
           borderBottom: `4px solid ${resume?.themeColor || '#4f46e5'}`,
         }}

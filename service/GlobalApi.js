@@ -42,34 +42,70 @@ const GetUserResumes = (userEmail) =>
  * @param {string} id - Resume ID.
  * @param {Object} data - Updated resume data.
  */
+
 const UpdateResumeDetail = (id, data) => {
-  // Clean the skills data by removing any ID fields
   const cleanSkills = data.skills?.map(skill => {
     const { id: _, ...cleanSkill } = skill;
     return cleanSkill;
   });
 
-  // Clean the projects data by removing any ID fields
   const cleanProjects = data.projects?.map(project => {
     const { id: _, ...cleanProject } = project;
     return cleanProject;
   });
 
-  // Prepare the request data
+  const cleanEducation = data.education?.map(education => ({
+    universityName: education.universityName || null,
+    degree: education.degree || null,
+    major: education.major || null,
+    startDate: education.startDate || null,
+    endDate: education.endDate || null,
+    description: education.description || null
+  })).filter(edu => 
+    Object.values(edu).some(val => val !== null)
+  );
+
+  const cleanCustomSections = data.customSections
+    ? Object.entries(data.customSections).map(([key, value]) => ({
+        id: key, // Include the key as an ID if needed
+        ...value,
+      }))
+    : [];
+
+  // Build CORRECT request data structure
   const requestData = {
-    data: {
-      ...(cleanSkills && { skills: cleanSkills }),
-      ...(cleanProjects && { projects: cleanProjects }), // ✅ Now projects are cleaned too
-      ...(data.education && {
-        education: Array.isArray(data.education) ? data.education : [data.education]
-      }),
-      ...Object.fromEntries(
-        Object.entries(data).filter(([key]) => !['skills', 'education', 'projects'].includes(key))
-      )
-    }
+    education: cleanEducation,
+    ...(cleanSkills && { skills: cleanSkills }),
+    ...(cleanProjects && { projects: cleanProjects }),
+    ...(cleanCustomSections.length > 0 && { customSections: cleanCustomSections }),
+    ...Object.fromEntries(
+      Object.entries(data).filter(([key]) => !['skills', 'education', 'projects', 'customSections'].includes(key))
+    )
   };
 
-  return requestData; // Make sure this is actually sent to your API
+  // Debugging Logs
+  console.log("Final Processed Data Before API Call:", requestData);
+  console.log("Full API Request Body:", JSON.stringify({ data: requestData }, null, 2));
+
+  return axiosClient.put(`/user-resumes/${id}`, { data: requestData }, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    }
+  })
+  .then(response => {
+    console.log("API Response:", response.data);
+    return response.data;
+  })
+  .catch(error => {
+    console.error("API Error Details:", {
+      status: error.response?.status,
+      error: error.response?.data?.error,
+      message: error.message,
+      requestData: error.config?.data // Log what was actually sent
+    });
+    throw error;
+  });
 };
 
 /**
@@ -83,6 +119,7 @@ const GetResumeById = (id) => axiosClient.get(`/user-resumes/${id}`, { params: {
  * @param {string} id - Resume ID.
  */
 const DeleteResumeById = (id) => axiosClient.delete(`/user-resumes/${id}`); // Original
+
 
 // Export with original naming convention
 export default {

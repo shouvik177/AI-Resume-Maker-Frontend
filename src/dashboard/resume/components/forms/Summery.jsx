@@ -10,7 +10,7 @@ import { AIChatSession } from './../../../../../service/AIModal';
 
 const generatePrompt = (type, jobTitle) => {
     return `
-    Generate **three ATS-optimized ${type} summary variations** for a ${jobTitle} with quantifiable achievements:
+    Generate **three ATS-optimized ${type} summary variations** for a ${jobTitle} with quantifiable achievements and last 1000 prompt should not be repeat always new prompt should give:
 
     1️⃣ **Entry-Level (0-2 years experience)**
     - Include: 2-3 measurable outcomes (e.g., "Improved process efficiency by 25%")
@@ -102,16 +102,17 @@ function Summery({ enabledNext }) {
 
     const onSave = async (e) => {
         e.preventDefault();
+    
         if (!summery.trim()) {
             toast.warning('Please add a summary');
             return;
         }
-
+    
         setLoading(true);
         try {
-            await GlobalApi.UpdateResumeDetail(params?.resumeId, { 
-                data: { summery } 
-            });
+            // Remove the wrapping of 'data' object, sending 'summery' directly
+            await GlobalApi.UpdateResumeDetail(params?.resumeId, { summery });
+    
             enabledNext(true);
             toast.success('Summary saved!');
         } catch (error) {

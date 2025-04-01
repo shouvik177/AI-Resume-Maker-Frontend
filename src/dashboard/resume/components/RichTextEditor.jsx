@@ -6,47 +6,6 @@ import { BtnBold, BtnBulletList, BtnItalic, Editor, EditorProvider, Separator, T
 import { AIChatSession } from './../../../../service/AIModal';
 import { toast } from 'sonner';
 
-const generateExperiencePrompt = (type, jobTitle, companyName) => {
-    // Get industry-specific keywords and metrics
-    const { keywords, metrics } = getIndustrySpecifics(jobTitle);
-    
-    return `
-        IMPORTANT: Return ONLY the bullet point content in HTML <li> format.
-        DO NOT wrap the response in JSON or include any field names like "professionalSummary".
-        DO NOT include any opening or closing braces, quotes, or other JSON formatting.
-
-        **Job Title:** ${jobTitle}
-        **Company:** ${companyName || '[Company]'}
-        **Type:** ${type} experience summary
-
-        Generate a powerful, ATS-optimized professional summary with these requirements:
-
-        ✅ ESSENTIAL COMPONENTS:
-        - 5-7 bullet points in HTML <li> format
-        - Each point should be 15-25 words
-        - Start each with strong action verbs (Led, Engineered, Optimized, etc.)
-        - Include 1-2 quantifiable achievements per point using these metric types: ${metrics.join(', ')}
-        - Incorporate these keywords naturally: ${keywords.join(', ')}
-
-        ✅ REQUIRED ELEMENTS PER POINT:
-        1. Action verb + what you did
-        2. Technology/tools used (if applicable)
-        3. Business impact with numbers (${metrics.join(', ')})
-        4. Problem-Action-Result structure
-
-        ✅ EXAMPLE STRUCTURES:
-        <li>Increased [metric] by X% through [action] using [technology], resulting in [business impact]</li>
-        <li>Reduced [process time/cost] by X% by implementing [solution], saving $Y annually</li>
-        <li>Led team of X to deliver [project] Y days ahead of schedule using [methodology]</li>
-
-        ✅ INDUSTRY-SPECIFIC FOCUS:
-        - Technical roles: Highlight ${keywords.filter(k => !k.includes('management')).join(', ')}
-        - Leadership roles: Emphasize ${keywords.filter(k => k.includes('management')).join(', ') || 'team leadership'}
-
-        Make the content specific, measurable, and achievement-oriented.
-    `;
-};
-
 const getIndustrySpecifics = (jobTitle) => {
     const techKeywords = ["Agile", "CI/CD", "DevOps", "SDLC", "cloud architecture", "APIs", "microservices"];
     const managementKeywords = ["KPIs", "ROI", "stakeholder management", "strategic planning", "budget management"];
@@ -74,112 +33,232 @@ const getIndustrySpecifics = (jobTitle) => {
     };
 };
 
+const generateExperiencePrompt = (type, jobTitle, companyName) => {
+    const { keywords, metrics } = getIndustrySpecifics(jobTitle);
+    
+    return `
+    Generate three ATS-optimized experience variations for a ${jobTitle} at ${companyName || 'a company'} with these strict requirements:
+
+    ### Response Format Requirements
+    1. Return ONLY valid JSON format
+    2. No markdown, no additional text
+    3. Structure must match exactly:
+
+    {
+      "experiences": [
+        {
+          "experience_level": "Entry-Level",
+          "bullets": [
+            "Action verb + achievement with [X%] or [$Y] metrics",
+            "Second measurable bullet point"
+          ],
+          "keywords": ["list", "of", "5-7", "terms"]
+        },
+        {
+          "experience_level": "Mid-Career",
+          "bullets": ["...", "..."],
+          "keywords": ["..."]
+        },
+        {
+          "experience_level": "Senior",
+          "bullets": ["...", "..."],
+          "keywords": ["..."]
+        }
+      ]
+    }
+
+    ### Content Requirements
+    For each experience level, include:
+
+    1️⃣ Entry-Level (0-2 years):
+    - 3-4 bullet points
+    - 1 quantifiable metric per point
+    - Focus: Core skills and early achievements
+    - Example: "Reduced report generation time by 30% using Excel macros"
+
+    2️⃣ Mid-Career (3-7 years):
+    - 4-5 bullet points
+    - 2 quantifiable metrics
+    - Focus: Project leadership
+    - Example: "Led team of 5 to implement CRM system, increasing sales by 25%"
+
+    3️⃣ Senior-Level (8+ years):
+    - 5-6 bullet points
+    - 2-3 strategic metrics
+    - Focus: Organizational impact
+    - Example: "Directed digital transformation saving $1.2M annually"
+
+    ### Required Elements
+    - Start each bullet with strong action verbs
+    - Include ${metrics.join(', ')} metrics
+    - Use these keywords naturally: ${keywords.join(', ')}
+    - Keep bullets 15-25 words each
+    `;
+};
+
 function RichTextEditor({ onRichTextEditorChange, index, defaultValue }) {
     const [value, setValue] = useState(defaultValue);
     const { resumeInfo } = useContext(ResumeInfoContext);
     const [loadingType, setLoadingType] = useState(null);
-    const [aiGenerated, setAiGenerated] = useState(!!defaultValue);
+    const [aiGeneratedExperiences, setAiGeneratedExperiences] = useState([]);
 
-    const generateSummaryFromAI = async (type) => {
-        if (!resumeInfo?.Experience[index]?.title) {
-            toast('Please Add Position Title');
+    const generateExperienceFromAI = async (type) => {
+        if (!resumeInfo?.Experience?.[index]?.title) {
+            toast.warning('Please add a job title first');
             return;
         }
 
         setLoadingType(type);
-        const jobTitle = resumeInfo.Experience[index].title;
-        const companyName = resumeInfo.Experience[index].company;
-        const prompt = generateExperiencePrompt(type, jobTitle, companyName);
+        setAiGeneratedExperiences([]);
 
         try {
-            const result = await AIChatSession.sendMessage(prompt);
-            let rawText = await result.response.text();
+            const jobTitle = resumeInfo.Experience[index].title;
+            const companyName = resumeInfo.Experience[index].company;
+            const prompt = generateExperiencePrompt(type, jobTitle, companyName);
 
-            // Clean the response to remove any potential JSON artifacts
+            const result = await AIChatSession.sendMessage(prompt);
+            const responseText = await result.response.text();
+
+            let parsed;
             try {
-                const jsonResponse = JSON.parse(rawText);
-                if (jsonResponse.professionalSummary) {
-                    rawText = jsonResponse.professionalSummary;
-                }
+                parsed = JSON.parse(responseText);
             } catch (e) {
-                // Not JSON, use as-is
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+                else throw new Error('Response is not valid JSON');
             }
 
-            // Remove any remaining JSON-like artifacts
-            rawText = rawText
-                .replace(/^{/, '')
-                .replace(/}$/, '')
-                .replace(/^"professionalSummary":\s*"/, '')
-                .replace(/"$/, '')
-                .trim();
+            if (!parsed.experiences || !Array.isArray(parsed.experiences)) {
+                throw new Error('Invalid response structure');
+            }
 
-            // Process the bullet points
-            const bulletPoints = rawText
-                .split('\n')
-                .map(item => item.trim())
-                .filter(item => item.length > 0)
-                .map(item => {
-                    // Remove any list markers if they exist
-                    if (item.startsWith('<li>')) return item;
-                    if (item.startsWith('- ')) return `<li>${item.substring(2)}</li>`;
-                    if (item.match(/^\d+\.\s/)) return `<li>${item.replace(/^\d+\.\s/, '')}</li>`;
-                    return `<li>${item}</li>`;
-                })
-                .join('');
+            const validatedExperiences = parsed.experiences.map(exp => {
+                if (!exp.experience_level || !exp.bullets || !exp.keywords) {
+                    throw new Error('Missing required experience fields');
+                }
+                return {
+                    experience_level: exp.experience_level,
+                    bullets: exp.bullets.filter(b => typeof b === 'string'),
+                    keywords: exp.keywords.filter(k => typeof k === 'string')
+                };
+            });
 
-            const newValue = `<ul>${bulletPoints}</ul>`;
-            setValue(newValue);
-            setAiGenerated(true);
-            onRichTextEditorChange({ target: { value: newValue } });
-
+            setAiGeneratedExperiences(validatedExperiences);
+            toast.success(`Generated ${validatedExperiences.length} experience variations`);
         } catch (error) {
-            console.error('AI response error:', error);
-            toast.error(`Failed to generate ${type} experience.`);
+            console.error('Generation error:', error);
+            toast.error(`Failed to generate: ${error.message}`);
+        } finally {
+            setLoadingType(null);
         }
-
-        setLoadingType(null);
     };
 
-    const handleFormatting = (callback) => {
-        if (!aiGenerated) {
-            if (!window.confirm("⚠️ You must generate from AI first! Do you want to generate now?")) return;
-            generateSummaryFromAI("Professional");
-            return;
-        }
-        callback();
+    const applyExperience = (bullets) => {
+        const htmlContent = `<ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul>`;
+        setValue(htmlContent);
+        onRichTextEditorChange({ target: { value: htmlContent } });
+        toast.success('Experience applied!');
     };
 
     return (
-        <div>
-            {/* AI Experience Type Buttons */}
-            <div className="flex gap-3 my-3">
+        <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
                 {["Professional", "Technical", "Leadership"].map(type => (
-                    <Button key={type} variant="outline"
-                        onClick={() => generateSummaryFromAI(type)}
+                    <Button
+                        key={type}
+                        variant="outline"
+                        onClick={() => generateExperienceFromAI(type)}
                         disabled={loadingType === type}
-                        className="border-primary text-primary flex gap-2">
-                        {loadingType === type
-                            ? <LoaderCircle className="animate-spin" />
-                            : <Brain className='h-4 w-4' />}
-                        {loadingType === type ? "Generating..." : type}
+                        className="flex items-center gap-2"
+                    >
+                        {loadingType === type ? (
+                            <>
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                                Generating...
+                            </>
+                        ) : (
+                            <>
+                                <Brain className="h-4 w-4" />
+                                {type} AI
+                            </>
+                        )}
                     </Button>
                 ))}
             </div>
 
-            {/* Rich Text Editor */}
             <EditorProvider>
-                <Editor value={value} onChange={(e) => {
-                    setValue(e.target.value);
-                    onRichTextEditorChange(e);
-                }}>
+                <Editor
+                    value={value}
+                    onChange={(e) => {
+                        setValue(e.target.value);
+                        onRichTextEditorChange(e);
+                    }}
+                    className="border rounded-md p-2 min-h-[150px] bg-white"
+                >
                     <Toolbar>
-                        <BtnBold onClick={() => handleFormatting(() => document.execCommand("bold"))} />
-                        <BtnItalic onClick={() => handleFormatting(() => document.execCommand("italic"))} />
-                        <BtnBulletList onClick={() => handleFormatting(() => document.execCommand("insertUnorderedList"))} />
+                        <BtnBold />
+                        <BtnItalic />
+                        <BtnBulletList />
                         <Separator />
                     </Toolbar>
                 </Editor>
             </EditorProvider>
+
+            {aiGeneratedExperiences.length > 0 && (
+                <div className="mt-6 space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800">AI Suggestions</h3>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {aiGeneratedExperiences.map((exp, i) => (
+                            <div
+                                key={i}
+                                className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={() => applyExperience(exp.bullets)}
+                            >
+                                <div className="flex justify-between items-start mb-3">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                        exp.experience_level === 'Entry-Level' ? 'bg-green-100 text-green-800' :
+                                        exp.experience_level === 'Mid-Career' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-purple-100 text-purple-800'
+                                    }`}>
+                                        {exp.experience_level}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                        {exp.bullets.length} bullets
+                                    </span>
+                                </div>
+                                <ul className="space-y-2 mb-3">
+                                    {exp.bullets.slice(0, 3).map((bullet, j) => (
+                                        <li key={j} className="text-sm text-gray-700 flex">
+                                            <span className="text-gray-500 mr-2">•</span>
+                                            <span className="line-clamp-2">{bullet}</span>
+                                        </li>
+                                    ))}
+                                    {exp.bullets.length > 3 && (
+                                        <li className="text-xs text-gray-500 mt-1">
+                                            +{exp.bullets.length - 3} more
+                                        </li>
+                                    )}
+                                </ul>
+                                {exp.keywords && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <h4 className="text-xs font-medium text-gray-500 mb-2">Key Skills:</h4>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {exp.keywords.slice(0, 5).map((kw, k) => (
+                                                <span 
+                                                    key={k} 
+                                                    className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700"
+                                                >
+                                                    {kw}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

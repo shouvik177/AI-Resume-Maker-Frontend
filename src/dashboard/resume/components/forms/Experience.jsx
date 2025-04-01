@@ -6,7 +6,7 @@ import { ResumeInfoContext } from '@/context/ResumeInfoContext';
 import { useParams } from 'react-router-dom';
 import GlobalApi from './../../../../../service/GlobalApi';
 import { toast } from 'sonner';
-import { LoaderCircle, Plus } from 'lucide-react';
+import { LoaderCircle, Plus, Trash2 } from 'lucide-react';
 
 const formField = {
     title: '',
@@ -25,37 +25,90 @@ function Experience() {
     const params = useParams();
     const [loading, setLoading] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
+    const [validationErrors, setValidationErrors] = useState({});
+    const [activeAccordion, setActiveAccordion] = useState(null);
 
     useEffect(() => {
         if (resumeInfo?.Experience?.length > 0) {
-            setExperienceList(resumeInfo.Experience);
+            setExperienceList(resumeInfo.Experience.map(exp => ({
+                ...exp,
+                currentlyWorking: exp.endDate === null
+            })));
+            setActiveAccordion(0);
         }
     }, [resumeInfo]);
+
+    const validateExperience = (exp, index) => {
+        const errors = {};
+        if (!exp.title?.trim()) errors[`title-${index}`] = 'Position title is required';
+        if (!exp.companyName?.trim()) errors[`companyName-${index}`] = 'Company name is required';
+        if (!exp.startDate) errors[`startDate-${index}`] = 'Start date is required';
+        
+        if (exp.endDate && !exp.currentlyWorking && new Date(exp.endDate) < new Date(exp.startDate)) {
+            errors[`endDate-${index}`] = 'End date must be after start date';
+        }
+        
+        return errors;
+    };
+
+    const formatAsBulletPoints = (text) => {
+        if (!text) return '';
+        if (text.includes('•') || text.includes('<li>')) return text;
+        return text.split('\n')
+            .filter(line => line.trim())
+            .map(line => `• ${line.trim()}`)
+            .join('\n');
+    };
 
     const handleChange = (index, event) => {
         const newEntries = [...experienceList];
         const { name, value, type, checked } = event.target;
 
-        if (type === "checkbox") {
-            newEntries[index][name] = checked;
-            if (checked) newEntries[index].endDate = "";
-        } else {
-            newEntries[index][name] = value;
+        newEntries[index][name] = type === "checkbox" ? checked : value;
+        
+        if (name === 'currentlyWorking' && checked) {
+            newEntries[index].endDate = '';
         }
 
         setExperienceList(newEntries);
         setIsDirty(true);
+        
+        setValidationErrors(prev => {
+            const newErrors = {...prev};
+            delete newErrors[`${name}-${index}`];
+            return newErrors;
+        });
     };
 
+    // Add this function back
     const addNewExperience = () => {
-        setExperienceList([...experienceList, { ...formField }]);
+        const newExperience = { ...formField };
+        setExperienceList([...experienceList, newExperience]);
         setIsDirty(true);
+        setActiveAccordion(experienceList.length); // Open the new experience
     };
 
-    const removeExperience = () => {
+    const removeExperience = (index) => {
         if (experienceList.length > 0) {
-            setExperienceList(experienceList.slice(0, -1));
+            const newEntries = [...experienceList];
+            newEntries.splice(index, 1);
+            setExperienceList(newEntries);
             setIsDirty(true);
+            
+            setValidationErrors(prev => {
+                const newErrors = {...prev};
+                Object.keys(newErrors).forEach(key => {
+                    if (key.endsWith(`-${index}`)) delete newErrors[key];
+                });
+                return newErrors;
+            });
+
+            // Adjust active accordion if needed
+            if (activeAccordion === index) {
+                setActiveAccordion(null);
+            } else if (activeAccordion > index) {
+                setActiveAccordion(activeAccordion - 1);
+            }
         }
     };
 
@@ -67,162 +120,252 @@ function Experience() {
     };
 
     const onSave = async () => {
-        if (!isDirty) return;
-        
         setLoading(true);
         
+        const errors = {};
+        experienceList.forEach((exp, index) => {
+            const expErrors = validateExperience(exp, index);
+            Object.assign(errors, expErrors);
+        });
+        
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
+            toast.error('Please fix validation errors before saving');
+            setLoading(false);
+            return;
+        }
+
         try {
-            // Prepare data without the currentlyWorking field
-            const data = {
-                data: {
-                    Experience: experienceList.map(exp => {
-                        const cleanExp = {
-                            title: exp.title || '',
-                            companyName: exp.companyName || '',
-                            city: exp.city || '',
-                            state: exp.state || '',
-                            startDate: exp.startDate || '',
-                            endDate: exp.currentlyWorking ? null : exp.endDate || '',
-                            workSummery: exp.workSummery || ''
-                        };
+            const experienceData = experienceList.map(exp => ({
+                title: exp.title.trim(),
+                companyName: exp.companyName.trim(),
+                city: exp.city.trim(),
+                state: exp.state.trim(),
+                startDate: exp.startDate,
+                endDate: exp.currentlyWorking ? null : exp.endDate,
+                workSummery: formatAsBulletPoints(exp.workSummery)
+            }));
+
+            const response = await GlobalApi.UpdateResumeDetail(params?.resumeId, { 
+                Experience: experienceData 
+            });
     
-                        // Remove empty optional fields
-                        Object.keys(cleanExp).forEach(key => {
-                            if (cleanExp[key] === '' || cleanExp[key] === null) {
-                                delete cleanExp[key];
-                            }
-                        });
-    
-                        return cleanExp;
-                    }).filter(exp => exp.title) // Only include entries with a title
-                }
-            };
-    
-            console.log("Sending data:", data); // Debug log
-    
-            const response = await GlobalApi.UpdateResumeDetail(params?.resumeId, data);
-            
-            if (response?.data) {
-                // Update local state with the response data
+            const responseData = response?.data || response;
+            if (responseData?.Experience) {
                 setResumeInfo(prev => ({
                     ...prev,
-                    Experience: response.data.data?.attributes?.Experience || 
-                              experienceList.map(exp => ({
-                                  ...exp,
-                                  // Re-add currentlyWorking flag based on endDate
-                                  currentlyWorking: exp.endDate === null || exp.endDate === ''
-                              }))
+                    Experience: responseData.Experience
                 }));
-                
-                toast.success("✅ Experience saved successfully!");
-                setIsDirty(false);
-            } else {
-                throw new Error("Invalid response from server");
             }
+    
+            toast.success("Experience saved successfully!");
+            setIsDirty(false);
         } catch (error) {
             console.error("Save error:", error);
-            toast.error(error.response?.data?.error?.message || "Failed to save experience.");
+            toast.error(error.response?.data?.error?.message || "Failed to save experience");
         } finally {
             setLoading(false);
         }
     };
+
     return (
-        <div>
-            <div className='p-5 shadow-lg rounded-lg border-t-primary border-t-4 mt-10'>
-                <h2 className='font-bold text-lg'>Professional Experience</h2>
-                <p>Add your work history with ATS-optimized descriptions</p>
+        <div className="space-y-6">
+            <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800">Professional Experience</h2>
+                    <p className="text-gray-600 mt-1">Showcase your work history with ATS-friendly descriptions</p>
+                </div>
 
-                <Button 
-                    onClick={addNewExperience} 
-                    className="mt-3 mb-5"
-                    variant="outline"
-                >
-                    <Plus size={16} className="mr-2" />
-                    Add Experience
-                </Button>
-
-                <div>
+                <div className="space-y-4">
                     {experienceList.map((item, index) => (
-                        <div key={index} className='border p-3 my-5 rounded-lg'>
-                            <div className='grid grid-cols-2 gap-3'>
-                                <div>
-                                    <label className='text-xs'>Position Title*</label>
-                                    <Input 
-                                        name="title" 
-                                        onChange={(event) => handleChange(index, event)} 
-                                        value={item.title} 
-                                        required
-                                    />
+                        <div key={index} className="border rounded-lg overflow-hidden">
+                            <button
+                                className="w-full p-4 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
+                                onClick={() => setActiveAccordion(activeAccordion === index ? null : index)}
+                            >
+                                <div className="flex items-center space-x-3">
+                                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-sm font-medium">
+                                        {index + 1}
+                                    </span>
+                                    <div className="text-left">
+                                        <h3 className="font-medium text-gray-800">
+                                            {item.title || 'Untitled Position'}
+                                        </h3>
+                                        <p className="text-sm text-gray-500">
+                                            {item.companyName || 'Company not specified'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className='text-xs'>Company Name*</label>
-                                    <Input 
-                                        name="companyName" 
-                                        onChange={(event) => handleChange(index, event)} 
-                                        value={item.companyName} 
-                                        required
+                                <svg
+                                    className={`h-5 w-5 text-gray-500 transform transition-transform ${
+                                        activeAccordion === index ? 'rotate-180' : ''
+                                    }`}
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                        clipRule="evenodd"
                                     />
-                                </div>
-                            </div>
+                                </svg>
+                            </button>
 
-                            <div className="grid grid-cols-2 gap-3 my-3">
-                                <div>
-                                    <label className='text-xs'>Start Date*</label>
-                                    <Input 
-                                        type="date" 
-                                        name="startDate" 
-                                        onChange={(event) => handleChange(index, event)} 
-                                        value={item.startDate} 
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className='text-xs'>End Date</label>
-                                    <Input 
-                                        type="date" 
-                                        name="endDate" 
-                                        onChange={(event) => handleChange(index, event)} 
-                                        value={item.endDate} 
-                                        disabled={item.currentlyWorking} 
-                                    />
-                                </div>
-                            </div>
+                            {activeAccordion === index && (
+                                <div className="p-5 space-y-4">
+                                    <div className="flex justify-end">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm"
+                                            onClick={() => removeExperience(index)}
+                                            className="text-red-500 hover:text-red-600"
+                                        >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Remove Experience
+                                        </Button>
+                                    </div>
 
-                            <div className="flex items-center gap-2 mb-3">
-                                <input
-                                    type="checkbox"
-                                    name="currentlyWorking"
-                                    checked={item.currentlyWorking}
-                                    onChange={(event) => handleChange(index, event)}
-                                    className="h-4 w-4"
-                                />
-                                <label className='text-xs'>Currently Working</label>
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                Position Title*
+                                            </label>
+                                            <Input 
+                                                name="title" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.title} 
+                                                className={validationErrors[`title-${index}`] ? 'border-red-500' : ''}
+                                            />
+                                            {validationErrors[`title-${index}`] && (
+                                                <p className="mt-1 text-sm text-red-600">
+                                                    {validationErrors[`title-${index}`]}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                Company Name*
+                                            </label>
+                                            <Input 
+                                                name="companyName" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.companyName} 
+                                                className={validationErrors[`companyName-${index}`] ? 'border-red-500' : ''}
+                                            />
+                                            {validationErrors[`companyName-${index}`] && (
+                                                <p className="mt-1 text-sm text-red-600">
+                                                    {validationErrors[`companyName-${index}`]}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
 
-                            <RichTextEditor 
-                                index={index} 
-                                value={item.workSummery}
-                                onRichTextEditorChange={(event) => handleRichTextEditor(event, 'workSummery', index)} 
-                            />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                Start Date*
+                                            </label>
+                                            <Input 
+                                                type="date" 
+                                                name="startDate" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.startDate} 
+                                                className={validationErrors[`startDate-${index}`] ? 'border-red-500' : ''}
+                                            />
+                                            {validationErrors[`startDate-${index}`] && (
+                                                <p className="mt-1 text-sm text-red-600">
+                                                    {validationErrors[`startDate-${index}`]}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                End Date
+                                            </label>
+                                            <Input 
+                                                type="date" 
+                                                name="endDate" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.endDate} 
+                                                disabled={item.currentlyWorking}
+                                                className={validationErrors[`endDate-${index}`] ? 'border-red-500' : ''}
+                                            />
+                                            {validationErrors[`endDate-${index}`] && (
+                                                <p className="mt-1 text-sm text-red-600">
+                                                    {validationErrors[`endDate-${index}`]}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                City
+                                            </label>
+                                            <Input 
+                                                name="city" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.city} 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                                State
+                                            </label>
+                                            <Input 
+                                                name="state" 
+                                                onChange={(event) => handleChange(index, event)} 
+                                                value={item.state} 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            name="currentlyWorking"
+                                            checked={item.currentlyWorking}
+                                            onChange={(event) => handleChange(index, event)}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                        <label className="text-sm font-medium text-gray-700">
+                                            I currently work here
+                                        </label>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">
+                                            Job Description & Achievements
+                                        </label>
+                                        <div className="border rounded-lg p-2">
+                                            <RichTextEditor 
+                                                index={index} 
+                                                value={item.workSummery}
+                                                onRichTextEditorChange={(event) => handleRichTextEditor(event, 'workSummery', index)} 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
 
-                <div className="flex justify-between mt-4">
-                    {experienceList.length > 0 && (
-                        <Button 
-                            variant="outline" 
-                            onClick={removeExperience}
-                            className="text-red-500 border-red-500 hover:text-red-600 hover:border-red-600"
-                        >
-                            Remove Last Experience
-                        </Button>
-                    )}
+                <div className="mt-6 flex flex-col sm:flex-row justify-between gap-3">
+                    <Button 
+                        onClick={addNewExperience}
+                        variant="outline"
+                        className="gap-2 w-full sm:w-auto"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add New Experience
+                    </Button>
                     
                     <Button 
                         onClick={onSave} 
                         disabled={loading || !isDirty}
-                        className="min-w-[120px]"
+                        className="w-full sm:w-auto min-w-[120px]"
                     >
                         {loading ? (
                             <>

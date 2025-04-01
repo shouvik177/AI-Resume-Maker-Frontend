@@ -54,20 +54,33 @@ function Education() {
 
   const onSave = () => {
     setLoading(true);
-    const data = {
-      data: {
-        education: educationalList.map(({ id, ...rest }) => rest)
-      }
+  
+    // Prepare education data with proper null handling
+    const educationData = educationalList.map(item => ({
+      universityName: item.universityName || null,
+      degree: item.degree || null,
+      major: item.major || null,
+      startDate: item.startDate || null,
+      endDate: item.endDate || null,
+      description: item.description || null
+    }));
+  
+    // Structure the payload exactly as API expects
+    const payload = {
+      education: educationData
     };
-
-    GlobalApi.UpdateResumeDetail(params.resumeId, data)
-      .then(() => {
+  
+    console.log("Component payload:", JSON.stringify(payload, null, 2));
+  
+    GlobalApi.UpdateResumeDetail(params.resumeId, payload)
+      .then((response) => {
         setLoading(false);
         toast.success('Details updated!');
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("Component error:", error.response?.data || error);
         setLoading(false);
-        toast.error('Server Error, Please try again!');
+        toast.error('Failed to update education details');
       });
   };
 

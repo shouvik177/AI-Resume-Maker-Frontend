@@ -9,8 +9,8 @@ import { Brain, LoaderCircle, Trash, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { AIChatSession } from './../../../../../service/AIModal';
 
-const projectPrompt = `
-Generate **three project descriptions** for a resume based on the project name: {projectName}.  
+const projectPrompt = (projectName) => `
+Generate **three project descriptions** for a resume based on the project name: ${projectName}.  
 Each description should be:  
 ✔️ Concise (3-4 lines)  
 ✔️ Industry-relevant with strong action words  
@@ -29,69 +29,74 @@ function Projects({ enabledNext }) {
 
     // Load projects from context when available
     useEffect(() => {
-        if (resumeInfo.projects?.length) {
-            setProjects(resumeInfo.projects);
-        } else {
-            setProjects([{ name: '', description: '', startDate: '', endDate: '', isPresent: false }]);
-        }
+        setProjects(resumeInfo.projects?.length ? resumeInfo.projects : [{ name: '', description: '', startDate: '', endDate: '', isPresent: false }]);
     }, [resumeInfo.projects]);
 
     const handleProjectChange = (index, field, value) => {
-        const updatedProjects = [...projects];
+        setProjects((prevProjects) => {
+            const updatedProjects = [...prevProjects];
+            if (field === 'isPresent') {
+                updatedProjects[index].isPresent = value;
+                updatedProjects[index].endDate = value ? '' : updatedProjects[index].endDate;
+            } else {
+                updatedProjects[index][field] = value;
+            }
+            return updatedProjects;
+        });
 
-        if (field === 'isPresent') {
-            updatedProjects[index].isPresent = value;
-            updatedProjects[index].endDate = value ? '' : updatedProjects[index].endDate; // Clear end date if "Present" is checked
-        } else {
-            updatedProjects[index][field] = value;
-        }
-
-        setProjects(updatedProjects);
-        setResumeInfo(prevState => ({
+        setResumeInfo((prevState) => ({
             ...prevState,
-            projects: updatedProjects
+            projects,
         }));
     };
 
     const addProject = () => {
-        setProjects([...projects, { name: '', description: '', startDate: '', endDate: '', isPresent: false }]);
+        setProjects((prevProjects) => [
+            ...prevProjects,
+            { name: '', description: '', startDate: '', endDate: '', isPresent: false },
+        ]);
     };
 
     const removeProject = (index) => {
-        setProjects(projects.filter((_, i) => i !== index));
+        setProjects((prevProjects) => prevProjects.filter((_, i) => i !== index));
     };
 
-    /**
-     * 🔥 Fetch AI-generated project descriptions
-     */
     const generateProjectSuggestions = async (index) => {
         const projectName = projects[index].name.trim();
         if (!projectName) {
-            toast.error("Please enter a project name first!");
+            toast.error('Please enter a project name first!');
             return;
         }
 
         setAiLoading(true);
-        const PROMPT = projectPrompt.replace('{projectName}', projectName);
+        const prompt = projectPrompt(projectName);
 
         try {
-            const result = await AIChatSession.sendMessage(PROMPT);
+            const result = await AIChatSession.sendMessage(prompt);
             const responseText = await result.response.text();
-            console.log("🔍 Raw AI Response:", responseText);
+            console.log('🔍 Raw AI Response:', responseText);
 
-            const parsedData = JSON.parse(responseText);
+            let parsedData;
+            try {
+                parsedData = JSON.parse(responseText);
+            } catch (err) {
+                console.error('❌ JSON Parse Error:', err);
+                toast.error('AI response is invalid.');
+                setAiLoading(false);
+                return;
+            }
 
             if (Array.isArray(parsedData)) {
-                setAiSuggestions(prev => ({ ...prev, [index]: parsedData }));
+                setAiSuggestions((prev) => ({ ...prev, [index]: parsedData }));
             } else if (parsedData?.projects && Array.isArray(parsedData.projects)) {
-                setAiSuggestions(prev => ({ ...prev, [index]: parsedData.projects }));
+                setAiSuggestions((prev) => ({ ...prev, [index]: parsedData.projects }));
             } else {
-                console.error("❌ Unexpected AI Response:", parsedData);
-                toast.error("AI response format is incorrect.");
+                console.error('❌ Unexpected AI Response:', parsedData);
+                toast.error('AI response format is incorrect.');
             }
         } catch (error) {
-            console.error("⚠️ AI Processing Error:", error);
-            toast.error("AI service is currently unavailable.");
+            console.error('⚠️ AI Processing Error:', error);
+            toast.error('AI service is currently unavailable.');
         }
 
         setAiLoading(false);
@@ -99,123 +104,129 @@ function Projects({ enabledNext }) {
 
     const saveProjects = async () => {
         try {
-            console.log("🔄 Sending request:", JSON.stringify({ data: { projects } }, null, 2));
+            // Remove the extra { data: ... } wrapper
+            const payload = {
+                projects: projects.map(project => ({
+                    name: project.name || null,
+                    description: project.description || null,
+                    startDate: project.startDate || null,
+                    endDate: project.isPresent ? null : (project.endDate || null),
+                    isPresent: project.isPresent || false
+                }))
+            };
     
-            const response = await GlobalApi.UpdateResumeDetail(params?.resumeId, { data: { projects } });
+            console.log('🔄 Sending request:', JSON.stringify(payload, null, 2));
+            console.log('Resume ID:', params?.resumeId);
     
-            // Ensure enabledNext is a function before calling it
-            if (typeof enabledNext === "function") {
-                enabledNext(true);
-            } else {
-                console.warn("⚠️ Warning: enabledNext is not a function.");
+            if (!params?.resumeId) {
+                throw new Error('Resume ID is missing.');
             }
     
-            toast.success("✅ Projects saved successfully!");
-        } catch (error) {
-            console.error("❌ Error saving projects:", error.response?.data || error);
+            const response = await GlobalApi.UpdateResumeDetail(params.resumeId, payload);
+            console.log('API Response:', response);
     
-            // Show a meaningful error message to the user
-            toast.error(error.response?.data?.message || "Failed to save projects. Try again.");
+            if (typeof enabledNext === 'function') {
+                enabledNext(true);
+            }
+    
+            toast.success('✅ Projects saved successfully!');
+        } catch (error) {
+            console.error('❌ Error saving projects:', error);
+            toast.error('Failed to save projects. Try again.');
         }
     };
 
+
     return (
         <div>
-            <h1 className='text-2xl font-bold mb-4'>Add Your Projects</h1>
-            <p className='text-gray-600 mb-6'>Showcase your work by adding details about your projects.</p>
+            <h1 className="text-2xl font-bold mb-4">Add Your Projects</h1>
+            <p className="text-gray-600 mb-6">Showcase your work by adding details about your projects.</p>
 
             {projects.map((project, index) => (
-                <div key={index} className='p-5 shadow-lg rounded-lg border-t-primary border-t-4 mt-6 relative'>
-                    <h2 className='font-bold text-lg mb-4'>Project {index + 1}</h2>
+                <div key={index} className="p-5 shadow-lg rounded-lg border-t-primary border-t-4 mt-6 relative">
+                    <h2 className="font-bold text-lg mb-4">Project {index + 1}</h2>
 
-                    <div className='mb-4'>
-                        <label className='block font-semibold mb-2'>Project Name</label>
-                        <Input 
-                            className="w-full"
-                            value={project.name}
-                            placeholder="Enter project name..."
-                            onChange={(e) => handleProjectChange(index, 'name', e.target.value)}
+                    <Input
+                        className="w-full mb-4"
+                        value={project.name}
+                        placeholder="Enter project name..."
+                        onChange={(e) => handleProjectChange(index, 'name', e.target.value)}
+                    />
+
+                    <Textarea
+                        className="w-full mb-4"
+                        value={project.description}
+                        placeholder="Enter project description..."
+                        onChange={(e) => handleProjectChange(index, 'description', e.target.value)}
+                    />
+
+                    <div className="flex gap-4 mb-4">
+                        <Input
+                            className="w-1/2"
+                            value={project.startDate}
+                            placeholder="Start Date"
+                            type="date"
+                            onChange={(e) => handleProjectChange(index, 'startDate', e.target.value)}
+                        />
+                        <Input
+                            className="w-1/2"
+                            value={project.endDate}
+                            placeholder="End Date"
+                            type="date"
+                            onChange={(e) => handleProjectChange(index, 'endDate', e.target.value)}
+                            disabled={project.isPresent}
                         />
                     </div>
 
-                    <div className='mb-4'>
-                        <label className='block font-semibold mb-2'>Project Description</label>
-                        <div className='flex gap-2'>
-                            <Textarea 
-                                className="w-full"
-                                value={project.description}
-                                placeholder="Enter project description..."
-                                onChange={(e) => handleProjectChange(index, 'description', e.target.value)}
+                    <div className="flex gap-4 mb-4">
+                        <label className="flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={project.isPresent}
+                                onChange={(e) => handleProjectChange(index, 'isPresent', e.target.checked)}
                             />
-                            <Button 
-                                variant="outline" 
-                                onClick={() => generateProjectSuggestions(index)} 
-                                className="border-primary text-primary flex gap-2"
-                                disabled={aiLoading || !project.name.trim()}
-                            > 
-                                {aiLoading ? <LoaderCircle className="animate-spin" /> : <Brain className='h-4 w-4' />}
-                                {aiLoading ? "Generating..." : "AI"}
-                            </Button>
-                        </div>
+                            <span className="ml-2">Present</span>
+                        </label>
                     </div>
 
-                    {/* AI Suggestions */}
-                    {aiSuggestions[index] && aiSuggestions[index].length > 0 && (
+                    <Button
+                        variant="outline"
+                        onClick={() => generateProjectSuggestions(index)}
+                        className="border-primary text-primary flex gap-2 mb-4"
+                        disabled={aiLoading || !project.name.trim()}
+                    >
+                        {aiLoading ? <LoaderCircle className="animate-spin" /> : <Brain className="h-4 w-4" />}
+                        {aiLoading ? 'Generating...' : 'AI'}
+                    </Button>
+
+                    {aiSuggestions[index]?.length > 0 && (
                         <div className="my-4">
                             <h2 className="font-bold text-lg text-primary">AI Suggestions</h2>
                             {aiSuggestions[index].map((suggestion, i) => (
-                                <div key={i} 
+                                <div
+                                    key={i}
                                     onClick={() => handleProjectChange(index, 'description', suggestion.description)}
-                                    className="p-4 bg-gray-100 shadow-md rounded-lg cursor-pointer hover:bg-gray-200 transition">
+                                    className="p-4 bg-gray-100 shadow-md rounded-lg cursor-pointer hover:bg-gray-200 transition"
+                                >
                                     <p>{suggestion.description}</p>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {/* Start Date & End Date */}
-                    <div className='grid grid-cols-2 gap-4 mb-4'>
-                        <div>
-                            <label className='block font-semibold mb-2'>Start Date</label>
-                            <Input 
-                                type="date"
-                                value={project.startDate}
-                                onChange={(e) => handleProjectChange(index, 'startDate', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className='block font-semibold mb-2'>End Date</label>
-                            <Input 
-                                type="date"
-                                value={project.endDate}
-                                onChange={(e) => handleProjectChange(index, 'endDate', e.target.value)}
-                                disabled={project.isPresent}
-                            />
-                            <div className='mt-2 flex items-center'>
-                                <input 
-                                    type="checkbox"
-                                    checked={project.isPresent}
-                                    onChange={(e) => handleProjectChange(index, 'isPresent', e.target.checked)}
-                                />
-                                <label className='ml-2'>Present</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className='flex justify-between'>
-                        <Button variant="destructive" onClick={() => removeProject(index)} className="flex gap-2">
-                            <Trash className='h-4 w-4' /> Remove
-                        </Button>
-                        <Button onClick={addProject} className="bg-yellow-200 text-black flex gap-2">
-                            <Plus className='h-4 w-4' /> Add Project
-                        </Button>
-                    </div>
+                    <Button variant="destructive" onClick={() => removeProject(index)} className="flex gap-2 mt-4">
+                        <Trash className="h-4 w-4" /> Remove
+                    </Button>
                 </div>
             ))}
 
-            <div className='mt-6 flex justify-end'>
+            <div className="mt-6 flex justify-between">
+                <Button onClick={addProject} className="bg-yellow-200 text-black flex gap-2">
+                    <Plus className="h-4 w-4" /> Add Project
+                </Button>
+
                 <Button onClick={saveProjects} className="flex gap-2">
-                    <Save className='h-4 w-4' />
+                    <Save className="h-4 w-4" />
                     Save All
                 </Button>
             </div>

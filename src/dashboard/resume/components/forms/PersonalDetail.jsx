@@ -58,7 +58,6 @@ function PersonalDetail({ enabledNext }) {
       return;
     }
   
-    // Sanitize input to ensure no undefined values
     const sanitizedData = {
       firstName: formData.firstName || "",
       lastName: formData.lastName || "",
@@ -69,17 +68,13 @@ function PersonalDetail({ enabledNext }) {
       linkedinUrl: formData.linkedinUrl || null,
       githubUrl: formData.githubUrl || null,
       portfolioUrl: formData.portfolioUrl || null,
-      summery: resumeInfo.summery || ""  // Ensure correct spelling
     };
   
-    const payload = { data: sanitizedData };
-  
     try {
-      console.log("Sending request with payload:", JSON.stringify(payload, null, 2));
+      const response = await GlobalApi.UpdateResumeDetail(params.resumeId, sanitizedData);
       
-      const response = await GlobalApi.UpdateResumeDetail(params.resumeId, payload);
-  
-      if (response.data?.data?.id) {
+      // Updated success check - look for firstName or any required field
+      if (response.data?.firstName) {  // Changed this line
         setResumeInfo(prev => ({
           ...prev,
           ...formData
@@ -90,7 +85,7 @@ function PersonalDetail({ enabledNext }) {
         throw new Error("Invalid response format");
       }
     } catch (error) {
-      console.error("Update error:", error.response?.data || error.message);
+      console.error("Update error:", error);
       toast.error(
         error.response?.data?.error?.message || 
         "Failed to update details. Please try again."
