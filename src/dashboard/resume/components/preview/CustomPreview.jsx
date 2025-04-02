@@ -14,7 +14,6 @@ function CustomPreview({ resumeInfo, sectionKey }) {
   if (items.length === 0) return null;
 
   const themeColor = resumeInfo?.themeColor || '#3b82f6';
-
   return (
     <div className='my-6'>
       <h2 className='text-center font-bold text-sm mb-2' style={{ color: themeColor }}>

@@ -34,7 +34,7 @@ function ThemeColor() {
 
       // API call
       const response = await GlobalApi.UpdateResumeDetail(resumeId, {
-        data: { themeColor: color.toLowerCase() }, // Ensure lowercase hex
+        themeColor: color.toLowerCase() // Ensure lowercase hex
       });
 
       if (!response.data) {

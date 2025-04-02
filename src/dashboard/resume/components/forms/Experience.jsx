@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import RichTextEditor from '../RichTextEditor';
 import { ResumeInfoContext } from '@/context/ResumeInfoContext';
 import { useParams } from 'react-router-dom';
@@ -27,7 +27,9 @@ function Experience() {
     const [isDirty, setIsDirty] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
     const [activeAccordion, setActiveAccordion] = useState(null);
+    const isFirstRender = useRef(true);
 
+    // Initialize with resumeInfo data
     useEffect(() => {
         if (resumeInfo?.Experience?.length > 0) {
             setExperienceList(resumeInfo.Experience.map(exp => ({
@@ -37,6 +39,30 @@ function Experience() {
             setActiveAccordion(0);
         }
     }, [resumeInfo]);
+
+    // Sync local state with context for live preview
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        
+        setResumeInfo((prev) => {
+            if (!prev) return prev;
+            
+            // Format data for preview
+            const formattedExperience = experienceList.map(exp => ({
+                ...exp,
+                endDate: exp.currentlyWorking ? null : exp.endDate,
+                workSummery: formatAsBulletPoints(exp.workSummery)
+            }));
+            
+            if (JSON.stringify(prev.Experience) !== JSON.stringify(formattedExperience)) {
+                return { ...prev, Experience: formattedExperience };
+            }
+            return prev;
+        });
+    }, [experienceList, setResumeInfo]);
 
     const validateExperience = (exp, index) => {
         const errors = {};
@@ -80,12 +106,11 @@ function Experience() {
         });
     };
 
-    // Add this function back
     const addNewExperience = () => {
         const newExperience = { ...formField };
         setExperienceList([...experienceList, newExperience]);
         setIsDirty(true);
-        setActiveAccordion(experienceList.length); // Open the new experience
+        setActiveAccordion(experienceList.length);
     };
 
     const removeExperience = (index) => {
@@ -103,7 +128,6 @@ function Experience() {
                 return newErrors;
             });
 
-            // Adjust active accordion if needed
             if (activeAccordion === index) {
                 setActiveAccordion(null);
             } else if (activeAccordion > index) {

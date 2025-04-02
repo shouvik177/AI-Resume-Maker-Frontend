@@ -22,6 +22,7 @@ function ViewResume() {
                 setIsLoading(true);
                 const resp = await GlobalApi.GetResumeById(resumeId);
                 console.log("Resume Data:", resp.data.data);
+                console.log("Full Resume API Response:", JSON.stringify(resp.data, null, 2));
                 setResumeInfo(resp.data.data);
             } catch (error) {
                 console.error("Error fetching resume:", error);

@@ -33,7 +33,10 @@ const CreateNewResume = (data) => axiosClient.post("/user-resumes", data); // Ma
  */
 const GetUserResumes = (userEmail) => 
   axiosClient.get(`/user-resumes`, {
-    params: { filters: { userEmail: { $eq: userEmail } } }, // Exact original
+    params: { 
+      filters: { userEmail: { $eq: userEmail } },
+      populate: { customSection: { populate: ["items"] } }  // Populate `items` inside `customSection`
+    },
   });
 
 /**
@@ -65,7 +68,7 @@ const UpdateResumeDetail = (id, data) => {
     Object.values(edu).some(val => val !== null)
   );
 
-  const cleanCustomSections = data.customSections
+  const cleancustomSections = data.customSections
     ? Object.entries(data.customSections).map(([key, value]) => ({
         id: key, // Include the key as an ID if needed
         ...value,
@@ -77,7 +80,7 @@ const UpdateResumeDetail = (id, data) => {
     education: cleanEducation,
     ...(cleanSkills && { skills: cleanSkills }),
     ...(cleanProjects && { projects: cleanProjects }),
-    ...(cleanCustomSections.length > 0 && { customSections: cleanCustomSections }),
+    ...(cleancustomSections.length > 0 && { customSections: cleancustomSections }),
     ...Object.fromEntries(
       Object.entries(data).filter(([key]) => !['skills', 'education', 'projects', 'customSections'].includes(key))
     )
