@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://shk-vts.onrender.comC";  
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://shk-vts.onrender.com"; 
 const API_KEY = import.meta.env.VITE_STRAPI_API_KEY;
 
 const axiosClient = axios.create({
@@ -56,6 +56,7 @@ const UpdateResumeDetail = (id, data) => {
     const { id: _, ...cleanProject } = project;
     return cleanProject;
   });
+  console.log("h")
 
   const cleanEducation = data.education?.map(education => ({
     universityName: education.universityName || null,
