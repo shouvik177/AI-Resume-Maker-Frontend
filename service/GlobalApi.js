@@ -1,124 +1,109 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
+// Corrected environment variable names
+const API_BASE_URL = import.meta.env.VITE_BASE_URL; // Ensure correct usage
 const API_KEY = import.meta.env.VITE_STRAPI_API_KEY;
 
+// Debugging logs to check if environment variables are loaded correctly
+console.log("🔍 API_BASE_URL:", API_BASE_URL);
+console.log("🔍 API_KEY:", API_KEY ? "Loaded Successfully" : "Not Found!");
+
+// Create Axios client
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL+"/api/",
+  baseURL: `${API_BASE_URL}/api/`, // Ensure correct API URL format
   headers: {
     "Content-Type": "application/json",
     Authorization: `Bearer ${API_KEY}`,
   },
-  timeout: 10000, // Added timeout but kept all other original config
+  timeout: 30000, // Increased timeout for network stability
 });
 
-// Enhanced error interceptor but same structure
+// Enhanced error handling
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error("API Error:", error.response?.data || error.message);
+    console.error("❌ API Error:", error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
+
+// CRUD API Methods
 
 /**
  * Create a new resume.
  * @param {Object} data - Resume data.
  */
-const CreateNewResume = (data) => axiosClient.post("/user-resumes", data); // Maintained exact original
+const CreateNewResume = (data) => axiosClient.post("/user-resumes", data);
 
 /**
  * Get all resumes for a user by email.
  * @param {string} userEmail - User's email address.
  */
-const GetUserResumes = (userEmail) => 
-  axiosClient.get(`/user-resumes`, {
-    params: { 
+const GetUserResumes = (userEmail) =>
+  axiosClient.get("/user-resumes", {
+    params: {
       filters: { userEmail: { $eq: userEmail } },
-      populate: []  // Empty array means no specific fields are populated
+      populate: [],
     },
   });
 
 /**
  * Update resume details by ID.
- * Ensures `education` is formatted correctly.
  * @param {string} id - Resume ID.
  * @param {Object} data - Updated resume data.
  */
-
 const UpdateResumeDetail = (id, data) => {
-  const cleanSkills = data.skills?.map(skill => {
-    const { id: _, ...cleanSkill } = skill;
-    return cleanSkill;
-  });
+  const cleanSkills = data.skills?.map(({ id, ...skill }) => skill);
+  const cleanProjects = data.projects?.map(({ id, ...project }) => project);
 
-  const cleanProjects = data.projects?.map(project => {
-    const { id: _, ...cleanProject } = project;
-    return cleanProject;
-  });
-  console.log("h")
+  const cleanEducation = data.education
+    ?.map(({ universityName, degree, major, startDate, endDate, description }) => ({
+      universityName: universityName || null,
+      degree: degree || null,
+      major: major || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      description: description || null,
+    }))
+    .filter((edu) => Object.values(edu).some((val) => val !== null));
 
-  const cleanEducation = data.education?.map(education => ({
-    universityName: education.universityName || null,
-    degree: education.degree || null,
-    major: education.major || null,
-    startDate: education.startDate || null,
-    endDate: education.endDate || null,
-    description: education.description || null
-  })).filter(edu => 
-    Object.values(edu).some(val => val !== null)
-  );
-
-
-  // Build CORRECT request data structure
+  // Final data structure
   const requestData = {
     education: cleanEducation,
     ...(cleanSkills && { skills: cleanSkills }),
     ...(cleanProjects && { projects: cleanProjects }),
     ...Object.fromEntries(
-      Object.entries(data).filter(([key]) => !['skills', 'education', 'projects'].includes(key))
-    )
+      Object.entries(data).filter(([key]) => !["skills", "education", "projects"].includes(key))
+    ),
   };
 
-  // Debugging Logs
-  console.log("Final Processed Data Before API Call:", requestData);
-  console.log("Full API Request Body:", JSON.stringify({ data: requestData }, null, 2));
+  console.log("📤 Sending Update Request:", requestData);
 
-  return axiosClient.put(`/user-resumes/${id}`, { data: requestData }, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`
-    }
-  })
-  .then(response => {
-    console.log("API Response:", response.data);
-    return response.data;
-  })
-  .catch(error => {
-    console.error("API Error Details:", {
-      status: error.response?.status,
-      error: error.response?.data?.error,
-      message: error.message,
-      requestData: error.config?.data // Log what was actually sent
+  return axiosClient
+    .put(`/user-resumes/${id}`, { data: requestData })
+    .then((response) => {
+      console.log("✅ Update Success:", response.data);
+      return response.data;
+    })
+    .catch((error) => {
+      console.error("❌ Update Error:", error.response?.data || error.message);
+      throw error;
     });
-    throw error;
-  });
 };
 
 /**
- * Get resume details by ID (including related data).
+ * Get resume details by ID.
  * @param {string} id - Resume ID.
  */
-const GetResumeById = (id) => axiosClient.get(`/user-resumes/${id}`, { params: { populate: "*" } }); // Original
+const GetResumeById = (id) => axiosClient.get(`/user-resumes/${id}`, { params: { populate: "*" } });
 
 /**
  * Delete resume by ID.
  * @param {string} id - Resume ID.
  */
-const DeleteResumeById = (id) => axiosClient.delete(`/user-resumes/${id}`); // Original
+const DeleteResumeById = (id) => axiosClient.delete(`/user-resumes/${id}`);
 
-
-// Export with original naming convention
+// Export API functions
 export default {
   CreateNewResume,
   GetUserResumes,
