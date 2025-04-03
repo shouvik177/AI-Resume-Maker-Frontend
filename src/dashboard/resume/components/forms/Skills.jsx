@@ -120,6 +120,7 @@ function Skills() {
             category: category === 'Uncategorized' ? '' : category 
         }]);
     };
+    console.log("h")
 
     // Add new category
     const addNewCategory = () => {
