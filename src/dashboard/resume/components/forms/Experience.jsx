@@ -28,6 +28,7 @@ function Experience() {
     const [validationErrors, setValidationErrors] = useState({});
     const [activeAccordion, setActiveAccordion] = useState(null);
     const isFirstRender = useRef(true);
+    const [forceOpenAccordion, setForceOpenAccordion] = useState(null);
 
     // Initialize with resumeInfo data
     useEffect(() => {
@@ -104,13 +105,18 @@ function Experience() {
             delete newErrors[`${name}-${index}`];
             return newErrors;
         });
+
+        // Keep the accordion open when editing
+        setForceOpenAccordion(index);
     };
 
     const addNewExperience = () => {
         const newExperience = { ...formField };
+        const newIndex = experienceList.length;
         setExperienceList([...experienceList, newExperience]);
+        setActiveAccordion(newIndex);
+        setForceOpenAccordion(newIndex);
         setIsDirty(true);
-        setActiveAccordion(experienceList.length);
     };
 
     const removeExperience = (index) => {
@@ -133,6 +139,8 @@ function Experience() {
             } else if (activeAccordion > index) {
                 setActiveAccordion(activeAccordion - 1);
             }
+
+            setForceOpenAccordion(null);
         }
     };
 
@@ -141,6 +149,7 @@ function Experience() {
         newEntries[index][name] = event.target.value;
         setExperienceList(newEntries);
         setIsDirty(true);
+        setForceOpenAccordion(index);
     };
 
     const onSave = async () => {
@@ -184,6 +193,7 @@ function Experience() {
     
             toast.success("Experience saved successfully!");
             setIsDirty(false);
+            setForceOpenAccordion(null);
         } catch (error) {
             console.error("Save error:", error);
             toast.error(error.response?.data?.error?.message || "Failed to save experience");
@@ -205,7 +215,11 @@ function Experience() {
                         <div key={index} className="border rounded-lg overflow-hidden">
                             <button
                                 className="w-full p-4 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
-                                onClick={() => setActiveAccordion(activeAccordion === index ? null : index)}
+                                onClick={() => {
+                                    if (forceOpenAccordion !== index) {
+                                        setActiveAccordion(activeAccordion === index ? null : index);
+                                    }
+                                }}
                             >
                                 <div className="flex items-center space-x-3">
                                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-sm font-medium">
@@ -222,7 +236,7 @@ function Experience() {
                                 </div>
                                 <svg
                                     className={`h-5 w-5 text-gray-500 transform transition-transform ${
-                                        activeAccordion === index ? 'rotate-180' : ''
+                                        (activeAccordion === index || forceOpenAccordion === index) ? 'rotate-180' : ''
                                     }`}
                                     viewBox="0 0 20 20"
                                     fill="currentColor"
@@ -235,7 +249,7 @@ function Experience() {
                                 </svg>
                             </button>
 
-                            {activeAccordion === index && (
+                            {(activeAccordion === index || forceOpenAccordion === index) && (
                                 <div className="p-5 space-y-4">
                                     <div className="flex justify-end">
                                         <Button 

@@ -3,11 +3,13 @@ import PersonalDetail from './forms/PersonalDetail';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Home, Plus } from 'lucide-react';
 import Summery from './forms/Summery';
+import Highlights from './forms/Highlights';
 import Experience from './forms/Experience';
 import Education from './forms/Education';
 import Skills from './forms/Skills';
 import Projects from './forms/Projects';
-import Custom from './forms/Custom';
+import Achievements from './forms/Achievements';
+import Declaration from './forms/Declaration'; // Add this import
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ThemeColor from './ThemeColor';
 
@@ -15,27 +17,6 @@ function FormSection() {
   const [activeFormIndex, setActiveFormIndex] = useState(1);
   const [enableNext, setEnableNext] = useState(true);
   const { resumeId } = useParams();
-  const [customSections, setCustomSections] = useState([
-    { id: 1, title: 'Custom Section', key: 'custom-section-1' }
-  ]);
-
-  const addCustomSection = () => {
-    const newId = customSections.length > 0 ? Math.max(...customSections.map(s => s.id)) + 1 : 1;
-    setCustomSections([
-      ...customSections,
-      { 
-        id: newId, 
-        title: `Section ${newId}`, 
-        key: `custom-section-${newId}` 
-      }
-    ]);
-  };
-
-  const updateSectionTitle = (id, newTitle) => {
-    setCustomSections(customSections.map(section => 
-      section.id === id ? { ...section, title: newTitle } : section
-    ));
-  };
 
   return (
     <div className='p-6 bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen'>
@@ -76,36 +57,22 @@ function FormSection() {
         ) : activeFormIndex === 2 ? (
           <Summery enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 3 ? (
-          <Experience />
+          <Highlights enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 4 ? (
-          <Education />
+          <Experience enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 5 ? (
-          <Skills />
+          <Education enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 6 ? (
-          <Projects />
+          <Skills enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 7 ? (
-          <div className="space-y-6">
-            {customSections.map((section) => (
-              <Custom
-                key={section.id}
-                sectionKey={section.key}
-                sectionTitle={section.title}
-                onTitleChange={(newTitle) => updateSectionTitle(section.id, newTitle)}
-                enabledNext={setEnableNext}
-              />
-            ))}
-            <Button
-              variant="outline"
-              className="mt-4 border-dashed border-gray-300 text-gray-500 hover:border-solid hover:border-primary hover:text-primary"
-              onClick={addCustomSection}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Another Section
-            </Button>
-          </div>
+          <Projects enabledNext={(v) => setEnableNext(v)} />
         ) : activeFormIndex === 8 ? (
-          <Navigate to={'/my-resume/' + resumeId + "/view"} />
-        ) : null}
+          <Achievements enabledNext={(v) => setEnableNext(v)} />
+        ) : activeFormIndex === 9 ? ( 
+          <Declaration enabledNext={(v) => setEnableNext(v)} />
+        ) : (
+          <Navigate to={`/my-resume/${resumeId}/view`} />
+        )}
       </div>
     </div>
   );
