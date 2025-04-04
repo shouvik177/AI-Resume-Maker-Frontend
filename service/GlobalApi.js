@@ -1,12 +1,10 @@
 import axios from "axios";
 
 // Corrected environment variable names
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Ensure correct usage
+const API_BASE_URL = import.meta.env.VITE_BASE_URL; // Ensure correct usage
 const API_KEY = import.meta.env.VITE_STRAPI_API_KEY;
 
 // Debugging logs to check if environment variables are loaded correctly
-console.log("🔍 API_BASE_URL:", API_BASE_URL);
-console.log("🔍 API_KEY:", API_KEY ? "Loaded Successfully" : "Not Found!");
 
 // Create Axios client
 const axiosClient = axios.create({
