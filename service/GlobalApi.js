@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Corrected environment variable names
-const API_BASE_URL = import.meta.env.VITE_BASE_URL; // Ensure correct usage
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Ensure correct usage
 const API_KEY = import.meta.env.VITE_STRAPI_API_KEY;
 
 // Debugging logs to check if environment variables are loaded correctly
@@ -10,7 +10,7 @@ console.log("🔍 API_KEY:", API_KEY ? "Loaded Successfully" : "Not Found!");
 
 // Create Axios client
 const axiosClient = axios.create({
-  baseURL: `${API_BASE_URL}/api/`, // Ensure correct API URL format
+  baseURL: `${API_BASE_URL}/api/`, // Restored correct API URL format from old code
   headers: {
     "Content-Type": "application/json",
     Authorization: `Bearer ${API_KEY}`,
@@ -80,7 +80,7 @@ const UpdateResumeDetail = (id, data) => {
   console.log("📤 Sending Update Request:", requestData);
 
   return axiosClient
-    .put(`/user-resumes/${id}`, { data: requestData })
+    .put(`/user-resumes/${id}`, { data: requestData }) // Restored correct endpoint
     .then((response) => {
       console.log("✅ Update Success:", response.data);
       return response.data;
